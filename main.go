@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 	"syscall"
 	"text/template"
 	"time"
@@ -14,6 +17,7 @@ import (
 )
 
 const messageTemplate = "{{.DateTime}}\nCronic detected failure or error output for the command:\n{{.Cmd}}\n\nRESULT CODE: {{.Code}}\n\nERROR OUTPUT:\n{{.ErrorOut}}\n\nSTANDARD OUTPUT:\n{{.Out}}\n\n{{ if ne .Trace .Out }}\nTRACE-ERROR OUTPUT:\n{{.Trace}}  \n{{ end }}"
+const tracePatternTemplate = "^%s\\+%s"
 
 type Config struct {
 	LogFileName string `envconfig:"LOGFILE_NAME" default:"/var/log/cronic.log"`
@@ -29,45 +33,50 @@ type dataStruct struct {
 }
 
 func main() {
-	s, err := loadConfig()
+	t := template.Must(template.New("messageTemplate").Parse(messageTemplate))
 
+	s, err := loadConfig()
+	if err != nil {
+		processError(err)
+	}
 	args := os.Args
 	cmd := exec.Command(args[1], args[2:]...)
 	cmd.Stdin = os.Stdin
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	var outErr bytes.Buffer
-	cmd.Stderr = &outErr
-	t := template.Must(template.New("messageTemplate").Parse(messageTemplate))
+	var outStdErr bytes.Buffer
+	cmd.Stderr = &outStdErr
 
 	err = cmd.Run()
-	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			waitStatus := exitError.Sys().(syscall.WaitStatus)
-			data := dataStruct{
-				Cmd:      cmd.String(),
-				Code:     waitStatus.ExitStatus(),
-				ErrorOut: outErr.String(),
-				Out:      out.String(),
-				Trace:    outErr.String(),
-				DateTime: time.Now().Format(time.RFC3339),
-			}
-			err := t.Execute(os.Stdout, data)
-			if err != nil {
-				panic(err)
-			}
-		}
+	outErrString := outStdErr.String()
+	outTrace, outErr := filterErrorOutput(outErrString)
 
-	}
+	stdOutString := out.String()
 	data := dataStruct{
 		Cmd:      cmd.String(),
 		Code:     0,
 		ErrorOut: outErr.String(),
-		Out:      out.String(),
-		Trace:    outErr.String(),
+		Out:      stdOutString,
+		Trace:    outTrace.String(),
 		DateTime: time.Now().Format(time.RFC3339),
 	}
+	if err != nil {
+		log.Printf("Got error: %s", err)
+		if exitError, ok := err.(*exec.ExitError); ok {
+			log.Printf("Got exitError")
+			data.Code = exitError.Sys().(syscall.WaitStatus).ExitStatus()
+		} else {
+			data.ErrorOut = err.Error()
+			data.Code = -1
+		}
+	}
 
+	if data.Code != 0 {
+		err := t.Execute(os.Stdout, data)
+		if err != nil {
+			processError(err)
+		}
+	}
 	logfile, err := os.OpenFile(s.LogFileName, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0640)
 	if err != nil {
 		processError(err)
@@ -84,6 +93,41 @@ func main() {
 	}
 }
 
+func filterErrorOutput(outStdErr string) (bytes.Buffer, bytes.Buffer) {
+	var outTrace bytes.Buffer
+	var outErr bytes.Buffer
+	scanner := bufio.NewScanner(strings.NewReader(outStdErr))
+	ps4 := getEnvOrDefault("PS4", "+ ")
+	pattern, err := regexp.Compile(fmt.Sprintf("^%c\\+%c", ps4[0], ps4[1]))
+	if err != nil {
+		processError(err)
+	}
+	log.Printf("lkhbl")
+	for scanner.Scan() {
+		text := scanner.Text()
+		log.Printf("fff")
+		if pattern.MatchString(text) {
+			outTrace.Write([]byte(text))
+			outTrace.Write([]byte("\n"))
+			fmt.Print(".")
+		} else {
+			fmt.Print("+")
+			outErr.Write([]byte(text))
+			outErr.Write([]byte("\n"))
+		}
+	}
+	log.Printf("a=%s, b=%s", outTrace.String(), outErr.String())
+	return outTrace, outErr
+}
+
+func getEnvOrDefault(envKey string, defaultValue string) string {
+	ps4 := os.Getenv(envKey)
+	if ps4 == "" {
+		ps4 = defaultValue
+	}
+	return ps4
+}
+
 func loadConfig() (Config, error) {
 	var s Config
 	err := envconfig.Process("CRONIC", &s)
@@ -94,5 +138,5 @@ func loadConfig() (Config, error) {
 }
 
 func processError(err error) {
-	fmt.Printf("Failed: %s", err)
+	log.Fatalf("failed: %s", err)
 }
