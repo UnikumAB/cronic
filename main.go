@@ -102,10 +102,8 @@ func filterErrorOutput(outStdErr string) (bytes.Buffer, bytes.Buffer) {
 	if err != nil {
 		processError(err)
 	}
-	log.Printf("lkhbl")
 	for scanner.Scan() {
 		text := scanner.Text()
-		log.Printf("fff")
 		if pattern.MatchString(text) {
 			outTrace.Write([]byte(text))
 			outTrace.Write([]byte("\n"))
@@ -116,7 +114,6 @@ func filterErrorOutput(outStdErr string) (bytes.Buffer, bytes.Buffer) {
 			outErr.Write([]byte("\n"))
 		}
 	}
-	log.Printf("a=%s, b=%s", outTrace.String(), outErr.String())
 	return outTrace, outErr
 }
 
