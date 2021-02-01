@@ -17,7 +17,6 @@ import (
 )
 
 const messageTemplate = "{{.DateTime}}\nCronic detected failure or error output for the command:\n{{.Cmd}}\n\nRESULT CODE: {{.Code}}\n\nERROR OUTPUT:\n{{.ErrorOut}}\n\nSTANDARD OUTPUT:\n{{.Out}}\n\n{{ if ne .Trace .Out }}\nTRACE-ERROR OUTPUT:\n{{.Trace}}  \n{{ end }}"
-const tracePatternTemplate = "^%s\\+%s"
 
 type Config struct {
 	LogFileName string `envconfig:"LOGFILE_NAME" default:"/var/log/cronic.log"`
@@ -55,9 +54,9 @@ func main() {
 	data := dataStruct{
 		Cmd:      cmd.String(),
 		Code:     0,
-		ErrorOut: outErr.String(),
+		ErrorOut: outErr,
 		Out:      stdOutString,
-		Trace:    outTrace.String(),
+		Trace:    outTrace,
 		DateTime: time.Now().Format(time.RFC3339),
 	}
 	if err != nil {
@@ -93,12 +92,14 @@ func main() {
 	}
 }
 
-func filterErrorOutput(outStdErr string) (bytes.Buffer, bytes.Buffer) {
+// filterErrorOutput takes the output and looks for line on Trace level. Then it outputs those as seperate strings.
+func filterErrorOutput(outStdErr string) (string, string) {
 	var outTrace bytes.Buffer
 	var outErr bytes.Buffer
 	scanner := bufio.NewScanner(strings.NewReader(outStdErr))
 	ps4 := getEnvOrDefault("PS4", "+ ")
-	pattern, err := regexp.Compile(fmt.Sprintf("^%c\\+%c", ps4[0], ps4[1]))
+	tracePattern := fmt.Sprintf("^%s+%s", regexp.QuoteMeta(string(ps4[0])), regexp.QuoteMeta(string(ps4[1])))
+	pattern, err := regexp.Compile(tracePattern)
 	if err != nil {
 		processError(err)
 	}
@@ -114,7 +115,7 @@ func filterErrorOutput(outStdErr string) (bytes.Buffer, bytes.Buffer) {
 			outErr.Write([]byte("\n"))
 		}
 	}
-	return outTrace, outErr
+	return outTrace.String(), outErr.String()
 }
 
 func getEnvOrDefault(envKey string, defaultValue string) string {
