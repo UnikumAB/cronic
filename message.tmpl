@@ -1,0 +1,20 @@
+{{.DateTime}}
+{{- if eq .Code 0 }}
+Cronic ran successfully for the command:
+{{- else }}
+Cronic detected failure or error output for the command:
+{{- end }}
+{{.Cmd}}
+
+RESULT CODE: {{.Code}}
+
+ERROR OUTPUT:
+{{.ErrorOut}}
+
+STANDARD OUTPUT:
+{{.Out}}
+
+{{ if ne .Trace .Out }}
+TRACE-ERROR OUTPUT:
+{{.Trace}}
+{{ end }}

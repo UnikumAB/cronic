@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
@@ -16,7 +17,8 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-const messageTemplate = "{{.DateTime}}\nCronic detected failure or error output for the command:\n{{.Cmd}}\n\nRESULT CODE: {{.Code}}\n\nERROR OUTPUT:\n{{.ErrorOut}}\n\nSTANDARD OUTPUT:\n{{.Out}}\n\n{{ if ne .Trace .Out }}\nTRACE-ERROR OUTPUT:\n{{.Trace}}  \n{{ end }}"
+//go:embed message.tmpl
+var messageTemplate string
 
 type Config struct {
 	LogFileName string `envconfig:"LOGFILE_NAME" default:"/var/log/cronic.log"`
