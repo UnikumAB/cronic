@@ -15,7 +15,7 @@ builds:
     dir: .
     # Path to main.go file or main package.
     # Default is `.`.
-    main: ./cmd/runSync/main.go
+    main: ./main.go
     goos:
       - linux
       - windows
@@ -38,7 +38,7 @@ changelog:
       - '^docs:'
       - '^test:'
 nfpms:
-  - package_name: runSync
+  - package_name: cronic
     maintainer: Per Abich / Unikum AB
     formats:
       - rpm
