@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -15,6 +16,13 @@ import (
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
+)
+
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	builtBy = "unknown"
 )
 
 //go:embed message.tmpl
@@ -40,8 +48,19 @@ func main() {
 	if err != nil {
 		processError(err)
 	}
-	args := os.Args
-	cmd := exec.Command(args[1], args[2:]...)
+	versionFlag := flag.Bool("version", false, "Displays the version of cronic and exit")
+	logfileFlag := flag.String("logfile", s.LogFileName, "Logfile name. Defaults to value of the CRONIC_LOGFILE_NAME env variable.")
+	flag.Parse()
+	if *versionFlag {
+		fmt.Printf("Cronic version %s, commit=%q, build on %s by %s\n", version, commit, date, builtBy)
+		os.Exit(0)
+	}
+	args := flag.Args()
+	if len(args) < 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = os.Stdin
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -78,7 +97,7 @@ func main() {
 			processError(err)
 		}
 	}
-	logfile, err := os.OpenFile(s.LogFileName, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0640)
+	logfile, err := os.OpenFile(*logfileFlag, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0640)
 	if err != nil {
 		processError(err)
 	}
