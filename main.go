@@ -129,9 +129,7 @@ func filterErrorOutput(outStdErr string) (string, string) {
 		if pattern.MatchString(text) {
 			outTrace.Write([]byte(text))
 			outTrace.Write([]byte("\n"))
-			fmt.Print(".")
 		} else {
-			fmt.Print("+")
 			outErr.Write([]byte(text))
 			outErr.Write([]byte("\n"))
 		}
